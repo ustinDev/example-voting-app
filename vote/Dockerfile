@@ -26,6 +26,8 @@ FROM base AS final
 COPY . .
 
 # Make port 80 available for links and/or publish
+RUN useradd -u 10001 -m appuser && chown -R appuser:appuser /usr/local/app
+USER appuser
 EXPOSE 80
 
 # Define our command to be run when launching the container

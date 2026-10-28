@@ -1,0 +1,14 @@
+.git
+.gitignore
+**/.DS_Store
+**/__pycache__
+**/*.py[cod]
+**/node_modules
+.env
+.env.*
+!.env.example
+*.log
+bin/
+obj/
+.env*
+*.log

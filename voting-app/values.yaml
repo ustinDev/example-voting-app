@@ -1,0 +1,59 @@
+# Default values for voting-app Helm chart.
+
+global:
+  tag: ""
+
+vote:
+  replicaCount: 1
+  image:
+    repository: dockersamples/examplevotingapp_vote
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    port: 5000
+    targetPort: 80
+    nodePort: 31000
+
+result:
+  replicaCount: 1
+  image:
+    repository: dockersamples/examplevotingapp_result
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    port: 5001
+    targetPort: 80
+    nodePort: 31001
+
+worker:
+  replicaCount: 1
+  image:
+    repository: dockersamples/examplevotingapp_worker
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+redis:
+  replicaCount: 1
+  image:
+    repository: redis
+    tag: "alpine"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6379
+
+db:
+  replicaCount: 1
+  image:
+    repository: postgres
+    tag: "15-alpine"
+    pullPolicy: IfNotPresent
+  env:
+    postgresUser: "postgres"
+    postgresPassword: "postgres"
+    postgresDb: "postgres"
+  service:
+    type: ClusterIP
+    port: 5432

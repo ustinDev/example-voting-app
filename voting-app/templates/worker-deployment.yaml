@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app: worker
+    {{- include "voting-app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.worker.replicaCount }}
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+        {{- include "voting-app.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.worker.image.repository }}:{{ default .Values.worker.image.tag .Values.global.tag }}"
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

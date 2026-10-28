@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: result
+  labels:
+    app: result
+    {{- include "voting-app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.result.replicaCount }}
+  selector:
+    matchLabels:
+      app: result
+  template:
+    metadata:
+      labels:
+        app: result
+        {{- include "voting-app.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: result
+          image: "{{ .Values.result.image.repository }}:{{ default .Values.result.image.tag .Values.global.tag }}"
+          imagePullPolicy: {{ .Values.result.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

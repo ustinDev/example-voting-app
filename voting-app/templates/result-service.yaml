@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vote
+  labels:
+    app: vote
+    {{- include "voting-app.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.vote.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.vote.service.port }}
+      targetPort: {{ .Values.vote.service.targetPort }}
+      {{- if and (eq .Values.vote.service.type "NodePort") .Values.vote.service.nodePort }}
+      nodePort: {{ .Values.vote.service.nodePort }}
+      {{- end }}
+  selector:
+    app: vote
