@@ -1,4 +1,4 @@
-FROM node:18.20.4-slim 
+FROM node:18.20.8-slim
 
 # add curl for healthcheck
 RUN apt-get update && \
@@ -16,9 +16,11 @@ RUN npm ci && \
  npm cache clean --force && \
  mv /usr/local/app/node_modules /node_modules
 
-COPY --chown=node:node . .               
-RUN chown -R node:node /usr/local/app
-USER node 
+COPY . .
+
+# run as non-root (the built-in "node" user is UID 1000)
+USER node
+
 ENV PORT=80
 EXPOSE 80
 
