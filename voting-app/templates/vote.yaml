@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vote
+  labels:
+    app: vote
+    {{- include "voting-app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.vote.replicaCount }}
+  selector:
+    matchLabels:
+      app: vote
+  template:
+    metadata:
+      labels:
+        app: vote
+    spec:
+      securityContext:
+        runAsUser: 10001
+        sysctls:
+          - name: net.ipv4.ip_unprivileged_port_start   # lets non-root bind port 80
+            value: "0"
+      containers:
+        - name: vote
+          image: "{{ .Values.global.registry }}/voting-vote:{{ .Values.vote.tag | default .Values.global.tag }}"
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vote
+  labels:
+    app: vote
+spec:
+  type: LoadBalancer
+  selector:
+    app: vote
+  ports:
+    - port: 80
+      targetPort: 80
