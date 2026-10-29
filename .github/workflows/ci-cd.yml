@@ -94,9 +94,29 @@ jobs:
           tags: ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.service }}
 
-  deploy:
+  deploy-local:
     needs: build-scan-push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to the kind cluster
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          kubectl config use-context kind-voting-tf
+          helm upgrade --install voting ./voting-app \
+            --namespace voting --create-namespace \
+            --set global.registry="$DOCKERHUB_USERNAME" \
+            --set global.tag="${{ github.sha }}" \
+            --set db.password="$DB_PASSWORD" \
+            --wait --timeout 5m
+
+  deploy-eks:
+    needs: build-scan-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_EKS == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
