@@ -1,8 +1,15 @@
 # Voting App: Ship It (DevOps Capstone 1)
 
-This is my capstone for the DevOps Capstone Project 1. I took the Docker example voting app and built everything around it: safer containers, a Kubernetes cluster created with Terraform, a GitHub Actions pipeline that builds and deploys it, and a Helm chart so I can roll back a bad release.
+This is my project for Capstone 1 of the DevOps course. I took the Docker example voting app and built everything around it: safer containers, a Kubernetes cluster created with Terraform, a GitHub Actions pipeline that builds and deploys the app, and a Helm chart so I can roll back a bad release. I also wrote down what went wrong along the way.
 
 Forked from [dockersamples/example-voting-app](https://github.com/dockersamples/example-voting-app).
+
+**Take like two minutes to go through:**
+
+- The pipeline is in `.github/workflows/ci-cd.yml`, and a green run is in the screenshots below.
+- The cluster code is in `terraform/`.
+- The Helm chart is in `voting-app/`, and the rollback demo is in Step 5.
+- The honest list of what's missing is under "What isn't perfect".
 
 ## How it fits together
 
@@ -60,8 +67,8 @@ Vote at <http://localhost:8080> and see the results at <http://localhost:8081>.
 
 ## Step 2: Safer containers
 
-- Every base image is pinned to an exact version. Nothing uses `latest`.
-- Nothing runs as root. Vote and worker use user ID 10001, and result uses the built-in `node` user (ID 1000).
+- The base images in my three Dockerfiles are pinned to exact versions. None of them use `latest`.
+- My three app containers don't run as root. Vote and worker use user ID 10001, and result uses the built-in `node` user (ID 1000). Redis and PostgreSQL are the standard public images, and I didn't change how they run.
 - Every service has a `.dockerignore`. The one in `worker/` really matters. Without it, the `obj/` folder from my laptop got copied into the build and broke it.
 - The vote Dockerfile has several stages, and I only set the non-root user in the final one. The normal `docker-compose.yml` builds the dev stage, so it never tests that. That's why I added `docker-compose.final.yml`.
 - On Kubernetes, a non-root user can't use port 80 by default. The vote and result pods set a sysctl (`net.ipv4.ip_unprivileged_port_start=0`) to allow it.
@@ -107,9 +114,9 @@ helm upgrade --install voting ./voting-app -n voting --create-namespace \
 
 One thing to be careful about: the kind provider keeps the cluster's private key in the Terraform state file and prints it in `plan` output. So the state file is git-ignored and I never commit it. My screenshots of Terraform only show the last few lines of output.
 
-### Why I used kind instead of EKS?
+### Why I used kind instead of EKS
 
-The assignment asks for a cluster in the default AWS VPC. I wrote that in `terraform-aws/`, and it passes `terraform validate`, but I couldn't run it. My AWS account is part of an organization with a policy that blocks `ec2:DescribeVpcs` and `eks:DescribeCluster`. I tried six regions (us-east-1, us-east-2, us-west-2, eu-west-1, eu-west-2 and eu-central-1) and all of them were denied. After trying my best, I had to use a local kind cluster created with Terraform. The EKS deploy job is still in the pipeline. It stays skipped unless I set a repository variable called `DEPLOY_EKS` to `true`.
+The assignment asks for a cluster in the default AWS VPC. I wrote that in `terraform-aws/`, and it passes `terraform validate`, but I couldn't run it. My AWS account is part of an organization with a policy that blocks `ec2:DescribeVpcs` and `eks:DescribeCluster`. I tried six regions (us-east-1, us-east-2, us-west-2, eu-west-1, eu-west-2 and eu-central-1) and all of them were denied. Confirming from my colleagues, I used a local kind cluster created with Terraform. The EKS deploy job is still in the pipeline. It stays skipped unless I set a repository variable called `DEPLOY_EKS` to `true`.
 
 ## Step 4: The pipeline
 
@@ -117,7 +124,7 @@ Every push to `main` runs `.github/workflows/ci-cd.yml`:
 
 1. **test** installs the dependencies and does build and syntax checks on vote, result and worker, plus `helm lint`. The original project has no unit tests, so these are build checks, not functional tests.
 2. **build-scan-push** builds each image, scans it with Trivy, and pushes it to Docker Hub tagged with the commit SHA. Right now the scan only reports. It doesn't fail the build (`exit-code: "0"`), so findings show up in the log but don't stop the push.
-3. **deploy-local** runs on my own machine and uses Helm to deploy the new images to the kind cluster.
+3. **deploy-local** runs on my own machine and uses Helm to deploy the new images to the kind cluster. It waits up to 5 minutes, because the first deploy on a fresh cluster is slow while every image gets pulled.
 4. **deploy-eks** does the same for EKS, but is skipped unless `DEPLOY_EKS` is `true`.
 
 Pull requests run the test, build and scan steps, but they don't push or deploy.
@@ -169,8 +176,8 @@ I ship a broken release on purpose, then roll it back:
 ```bash
 helm history voting -n voting
 helm upgrade voting ./voting-app -n voting --reuse-values --set vote.tag=doesnotexist
-kubectl get pods -n voting        # the new vote pod is stuck in ImagePullBackOff
-helm rollback voting 1 -n voting  # use the number of the last good revision
+kubectl get pods -n voting        # the new vote pod is stuck in ErrImagePull / ImagePullBackOff
+helm rollback voting 1 -n voting  # the last GOOD revision, not the newest one
 kubectl get pods -n voting        # everything is Running again
 helm history voting -n voting     # the rollback shows up as a new revision
 ```
@@ -191,9 +198,19 @@ I use `--reuse-values` so the upgrade keeps my commit tag and password and only 
 ![Application running](docs/app-running.png)
 ![Rollback](docs/rollback.png)
 
+## Does it meet the brief?
+
+| What the brief asks for | Where to look | How it went |
+|---|---|---|
+| One push builds, scans and deploys | `.github/workflows/ci-cd.yml`, `docs/pipeline-green.png` | Works. The Trivy scan only reports, it doesn't block yet |
+| The environment rebuilds from code | `terraform/`, `docs/terraform-rebuild.png` | Works with a kind cluster. The EKS version couldn't be applied |
+| No secrets in Git | The secrets table above, `.gitignore` files | The password comes from a GitHub secret, and state files are ignored |
+| Rollback shown live | Step 5, `docs/rollback.png` | Works |
+| Hand-in: README, Terraform, one Helm chart, pipeline, architecture diagram | This repo | All there. The diagram is the one at the top |
+
 ## Security choices
 
-- Pinned base images, and no containers running as root.
+- Pinned base images in my Dockerfiles, and my three app containers don't run as root.
 - Every image gets a Trivy scan before it's pushed. It's report-only for now.
 - The database password isn't in the chart. It's passed in at deploy time from a GitHub secret and stored as a Kubernetes Secret.
 - Pods have resource limits and readiness probes.
@@ -203,8 +220,9 @@ I use `--reuse-values` so the upgrade keeps my commit tag and password and only 
 
 - PostgreSQL uses `emptyDir`, so if the database pod restarts, the votes are gone. A real setup would use a persistent volume.
 - The original app code hardcodes the database login as `postgres/postgres`. The chart uses a Secret, but the app still expects that value, which is why `DB_PASSWORD` has to be `postgres`. Reading the password from an environment variable would be the proper fix.
+- Redis and PostgreSQL use tags like `15-alpine`, not exact patch versions, and the compose files still use `redis:alpine`.
 - The packages in `vote/requirements.txt` aren't pinned, so image builds aren't exactly repeatable.
-- The Trivy scan doesn't fail the build yet.
+- The Trivy scan doesn't fail the build yet. My plan would be to fix the findings first, then turn it into a real gate.
 - Terraform state is stored locally. A remote backend would be better.
 - I never got to apply the EKS version because of the organization policy above.
 - Deploys only work while my machine and the runner are on.
@@ -221,7 +239,19 @@ I use `--reuse-values` so the upgrade keeps my commit tag and password and only 
 | `explicit deny in a service control policy` | The AWS organization blocks those actions | Switched to kind |
 | `Reference to undeclared input variable` | `variables.tf` was missing the `cluster_name` block | Added it |
 | `no context exists with the name "kind-voting-tf"` | The cluster hadn't been created yet | Ran `terraform apply`, or `kind export kubeconfig --name voting-tf` |
+| `./run.sh: No such file or directory` | I hadn't installed the self-hosted runner yet | Downloaded and configured it from the repo's Settings page |
 | `deploy-local` waits forever | The self-hosted runner was off | Started `./run.sh` |
+| Helm failed with `Pass --set db.password` | I hadn't created the `DB_PASSWORD` secret in GitHub | Added the secret with the value `postgres` |
+| Helm timed out after 5 minutes | A new cluster has no cached images, and the pulls were slow | The pods came up on their own, so I re-ran the job and raised the wait to 10 minutes |
+| After a rollback the broken pod was still there | I rolled back to the newest revision, which was the broken one | Rolled back to the last good revision from `helm history` |
+
+## What I learned
+
+- A pinned version only helps if it exists. I pinned a Trivy action version that wasn't real, and the pipeline failed before it even started.
+- Read the whole error. The AWS messages named the exact policy blocking me, and no amount of retrying would have fixed that.
+- A `.dockerignore` isn't optional. One missing file cost me a build that looked fine locally.
+- Rolling back means going to the last good revision, not the latest one. I got that wrong once while practicing.
+- The first deploy on a fresh cluster is slow because nothing is cached yet.
 
 ## Clean up
 
