@@ -1,6 +1,6 @@
 # Voting App: Ship It (DevOps Capstone 1)
 
-This is my capstone for the DevOps Capstone Project. I took the Docker example voting app and built everything around it: safer containers, a Kubernetes cluster created with Terraform, a GitHub Actions pipeline that builds and deploys it, and a Helm chart so I can roll back a bad release.
+This is my capstone for the DevOps Capstone Project 1. I took the Docker example voting app and built everything around it: safer containers, a Kubernetes cluster created with Terraform, a GitHub Actions pipeline that builds and deploys it, and a Helm chart so I can roll back a bad release.
 
 Forked from [dockersamples/example-voting-app](https://github.com/dockersamples/example-voting-app).
 
